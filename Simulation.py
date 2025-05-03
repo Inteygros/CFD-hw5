@@ -1,8 +1,9 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 # 全局变量
-M = 40  # x方向等分
-N = 40  # y方向等分
+M = 50  # x方向等分
+N = 50  # y方向等分
 
 
 # 定义SOR方法计算的函数
@@ -27,7 +28,7 @@ def SOR(psi, omega, dx, dy, w, tolerance):
 def SOR_w_opt(p, omega, dx, dy, w, tolerance):
     min_i = SOR(p.copy(), omega, dx, dy, w, tolerance)
     w_opt = w
-    for w1 in np.arange(w + 0.01, 2.0, 0.01):
+    for w1 in np.arange(w + 0.01, 1.86, 0.01):
         i = SOR(p.copy(), omega, dx, dy, w1, tolerance)
         if (min_i > i):
             min_i = i
@@ -40,9 +41,9 @@ dx = 1.0 / M
 dy = 1.0 / N
 dt = 0.001  # 时间
 nu = 0.001  # 运动粘度
-max_iter = 100  # 迭代时间步数
+max_iter = 2000  # 迭代时间步数
 tolerance = 1e-7  # SOR迭代的收敛限
-w = 1.8  # 初始松弛因子
+w = 1.86  # 初始松弛因子
 w_opt = w
 
 # 初始化数组
@@ -60,6 +61,14 @@ omega_new = omega.copy()  # 辅助计算
 # 初始时刻速度场
 for i in range(0, M):
     u[i][N - 1] = np.sin(np.pi * i * dx) ** 2
+
+# 设置实时绘图
+plt.ion()
+fig, ax = plt.subplots(figsize=(8, 6))
+x = np.linspace(0, 1, M)
+y = np.linspace(0, 1, N)
+X, Y = np.meshgrid(x, y, indexing='ij')  # 生成网格坐标
+
 
 for t in range(max_iter):
     # 计算n+1时刻内点的涡量
@@ -100,4 +109,21 @@ for t in range(max_iter):
     # 更新左右边界上的涡量
     for j in range(0, N):
         omega[0][j] = -2 * (psi[1][j] - psi[0][j]) / dx ** 2
-        omega[M - 1][j] = -2 * (psi[M - 2][j] - psi[M - 1][j]) / dy ** 2
+        omega[M - 1][j] = -2 * (psi[M - 2][j] - psi[M - 1][j]) / dx ** 2
+
+    # 绘制流线图
+    if t % 10 == 0:
+        ax.cla()
+        levels_ = np.arange(psi.min(), psi.max()+0.001, 0.001)
+        contour = ax.contour(X, Y, psi, 
+                        levels=levels_, 
+                        colors='k', 
+                        linestyles='solid', 
+                        linewidths=0.5)
+        ax.set_title(f'Time Step: {t}') 
+        ax.set_aspect('equal')
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        plt.pause(0.01)
