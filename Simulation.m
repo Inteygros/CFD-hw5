@@ -1,6 +1,6 @@
 % 参数设置
-M = 200;  % x方向网格数
-N = 200;  % y方向网格数
+M = 100;  % x方向网格数
+N = 100;  % y方向网格数
 dx = 1.0 / M;
 dy = 1.0 / N;
 dt = 0.001;      % 时间步长
@@ -32,6 +32,7 @@ hold on;
 x = linspace(0, 1, M);
 y = linspace(0, 1, N);
 [X, Y] = meshgrid(x, y);
+text_handles = gobjects(0); % 重置句柄
 
 % 主循环
 for t = 1:max_iter
@@ -80,19 +81,60 @@ for t = 1:max_iter
         omega(M,j) = -0.5*omega(M-1,j)-3*(psi(M-1,j) - psi(M,j))/dx^2;
     end
     
-    % 流线可视化
+    %%%%%%%%%%%%%%%%%%% 可视化部分 %%%%%%%%%%%%%%%%%%%
     if mod(t,100) == 0
         cla;
         contourf(X, Y, psi', 50, 'LineColor', 'none');
         streamslice(X, Y, u', v', 3);
+        
+        % 检测局部极值点
+        [maxima, minima] = find_vortex_cores(psi); %极值点
+        all_cores = [maxima; minima];
+    
+        % 筛选符合条件的涡心（绝对值阈值过滤）
+        if ~isempty(all_cores)
+            [selected_cores, magnitudes] = select_vortex_cores(all_cores, dx, dy);
+        
+            % 可视化标记
+            hold on;
+            delete(text_handles); % 清除旧文本
+            text_handles = gobjects(0); % 重置句柄
+            legend_handles = []; % 涡心强度句柄
+            if ~isempty(selected_cores)
+                h1=plot(selected_cores(1,1), selected_cores(1,2), 'ro-', 'MarkerSize', 3, 'MarkerFaceColor', 'r')  % 主涡心
+                text_handles(end+1) = text(selected_cores(1,1)+0.02, selected_cores(1,2)-0.02,...
+                    sprintf('(%.2f, %.2f)\n%.3e',...
+                    selected_cores(1,1), selected_cores(1,2), magnitudes(1)),...
+                    'Color','r', 'FontSize',10, 'VerticalAlignment','bottom');
+                if size(selected_cores,1)>=2
+                    h2=plot(selected_cores(2,1), selected_cores(2,2), 'go-', 'MarkerSize', 3, 'MarkerFaceColor', 'g')  % 二次涡心
+                    text_handles(end+1) = text(selected_cores(2,1)+0.02, selected_cores(2,2)-0.02,...
+                        sprintf('(%.2f, %.2f)\n%.3e',...
+                        selected_cores(2,1), selected_cores(2,2), magnitudes(2)),...
+                        'Color','g', 'FontSize',10, 'VerticalAlignment','top');
+                end
+                if size(selected_cores,1)>=3
+                    h3=plot(selected_cores(3,1), selected_cores(3,2), 'bo-', 'MarkerSize', 3, 'MarkerFaceColor', 'b') % 三次涡心
+                    text_handles(end+1) = text(selected_cores(3,1)-0.02, selected_cores(3,2)+0.02,...
+                        sprintf('(%.2f, %.2f)\n%.3e',...
+                        selected_cores(3,1), selected_cores(3,2), magnitudes(3)),...
+                        'Color','b', 'FontSize',10, 'HorizontalAlignment','right');
+                end
+            end
+            hold off
+        end
+        
         axis equal tight;
         title(sprintf('时间步: %d', t));
         drawnow;
     end
 end
 
-figure_str = ['figure\m=', num2str(m), '_n=', num2str(n), '.png'];
+
+figure_str = ['figure\M=', num2str(M), '_N=', num2str(N), '.png'];
 saveas(gcf, figure_str);
+
+%%%%%%%%%%%%%%%%%%% 函数部分 %%%%%%%%%%%%%%%%%%%
 
 % 定义SOR方法计算的函数
 function [psi, iter] = SOR(psi, omega, dx, dy, w, tolerance, M, N)
@@ -131,4 +173,62 @@ function w_opt = SOR_w_opt(p, omega, dx, dy, w, tolerance, M, N)
             w_opt = w1;
         end
     end
+end
+
+% 检测局部极值的核心函数
+function [maxima, minima] = find_vortex_cores(psi)
+    [M,N] = size(psi);
+    maxima = []; minima = [];
+    
+    for i = 3:M-2
+        for j = 3:N-2
+            current = psi(i,j);
+            window = psi(i-1:i+1,j-1:j+1); % 在3*3窗口寻找
+            window(2,2) = NaN; 
+            
+            if current > nanmax(window(:))
+                maxima = [maxima; [i,j,current]];  % 记录 [极大值点, 流函数值] 
+            elseif current < nanmin(window(:))
+                minima = [minima; [i,j,current]]; % 记录 [极小值点, 流函数值] 
+            end
+        end
+    end
+end
+
+function [selected, magnitudes] = select_vortex_cores(cores, dx, dy)
+    % 从极值点中按绝对值大小筛选得到涡心
+    
+    min_distance = 0.15;  % 物理空间最小间隔
+    
+    % 将极值点转换为物理坐标
+    cores(:,1) = (cores(:,1)-1)*dx;
+    cores(:,2) = (cores(:,2)-1)*dy;
+    
+    % 按强度绝对值排序
+    [~, idx] = sort(abs(cores(:,3)), 'descend');
+    sorted = cores(idx,:);
+    
+    % 空间过滤
+    selected = [];
+    for k = 1:size(sorted,1)
+        valid = true;
+        for m = 1:size(selected,1)
+            if norm(sorted(k,1:2)-selected(m,1:2)) < min_distance % 如果靠得太近，不认为是涡心
+                valid = false;
+                break;
+            end
+        end
+        if valid
+            selected = [selected; sorted(k,:)];
+            if size(selected,1)>=3  % 找到前三个即退出
+                break;
+            end
+        end
+    end
+    
+    % 提取强度信息，select每一行为[x,y,极值]
+    magnitudes = [0,0,0];
+    if size(selected,1)>=1, magnitudes(1) = selected(1,3); end
+    if size(selected,1)>=2, magnitudes(2) = selected(2,3); end
+    if size(selected,1)>=3, magnitudes(3) = selected(3,3); end
 end
