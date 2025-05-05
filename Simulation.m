@@ -1,36 +1,36 @@
 % 参数设置
-M = 500;  % x方向网格数
-N = 500;  % y方向网格数
+M = 128;  % x方向网格数
+N = 128;  % y方向网格数
 dx = 1.0 / M;
 dy = 1.0 / N;
-dt = 0.001;      % 时间步长
+dt = 0.005;      % 时间步长
 nu = 0.001;      % 运动粘度
 tolerance1 = 1e-5; % 时间迭代收敛阈值
 tolerance2 = 1e-7; % SOR方法收敛阈值
-w = 1.980;        % 初始松弛因子
+w = 1.96;        % 初始松弛因子
 w_opt = w;
 
 % 初始化场变量
-psi = zeros(M, N);   % 流函数
-omega = zeros(M, N); % 涡量
-u = zeros(M, N);
-v = zeros(M, N);
+psi = zeros(M+1, N+1);   % 流函数
+omega = zeros(M+1, N+1); % 涡量
+u = zeros(M+1, N+1);
+v = zeros(M+1, N+1);
 
 % 初始边界条件用Woods公式
-for i = 2:M-1
-    omega(i,N) = -3*(sin(pi*(i-1)*dx))^2/dy+dy*pi^2*cos(2*pi*(i-1)*dx);
+for i = 2:M
+    omega(i,N+1) = -3*(sin(pi*(i-1)*dx))^2/dy+dy*pi^2*cos(2*pi*(i-1)*dx);
 end
 
 % 初始速度场
-for i = 1:M
-    u(i, N) = (sin(pi * (i-1)*dx))^2;
+for i = 1:M+1
+    u(i, N+1) = (sin(pi * (i-1)*dx))^2;
 end
 
 % 实时绘图设置
 figure;
 hold on;
-x = linspace(0, 1, M);
-y = linspace(0, 1, N);
+x = linspace(0, 1, M+1);
+y = linspace(0, 1, N+1);
 [X, Y] = meshgrid(x, y);
 text_handles = gobjects(0); % 重置句柄
 
@@ -43,8 +43,8 @@ while(maxdomega>tolerance1)
     
     % 计算新时间步涡量
     omega_new = omega;
-    for i = 2:M-1
-        for j = 2:N-1
+    for i = 2:M
+        for j = 2:N
             % 扩散项
             diffusion = (omega(i+1,j) + omega(i-1,j) - 2*omega(i,j))/dx^2 ...
                       + (omega(i,j+1) + omega(i,j-1) - 2*omega(i,j))/dy^2;
@@ -72,25 +72,25 @@ while(maxdomega>tolerance1)
     [psi, ~] = SOR(psi, omega, dx, dy, w_opt, tolerance2, M, N);
     
     % 更新速度场
-    for i = 2:M-1
-        for j = 2:N-1
+    for i = 2:M
+        for j = 2:N
             u(i,j) = (psi(i,j+1) - psi(i,j-1))/(2*dy);
             v(i,j) = -(psi(i+1,j) - psi(i-1,j))/(2*dx);
         end
     end
     
     % 边界条件更新（Woods壁涡公式）
-    for i = 1:M  % 上下边界
+    for i = 1:M+1  % 上下边界
         omega(i,1) = -0.5*omega(i,2)-3*(psi(i,2) - psi(i,1))/dy^2;
-        omega(i,N) = -0.5*omega(i,N-1)-3*(psi(i,N-1) - psi(i,N))/dy^2-3*(sin(pi*(i-1)*dx))^2/dy+dy*pi^2*cos(2*pi*(i-1)*dx);
+        omega(i,N+1) = -0.5*omega(i,N)-3*(psi(i,N) - psi(i,N+1))/dy^2-3*(sin(pi*(i-1)*dx))^2/dy+dy*pi^2*cos(2*pi*(i-1)*dx);
     end
-    for j = 1:N  % 左右边界
+    for j = 1:N+1  % 左右边界
         omega(1,j) = -0.5*omega(2,j)-3*(psi(2,j) - psi(1,j))/dx^2;
-        omega(M,j) = -0.5*omega(M-1,j)-3*(psi(M-1,j) - psi(M,j))/dx^2;
+        omega(M+1,j) = -0.5*omega(M,j)-3*(psi(M,j) - psi(M+1,j))/dx^2;
     end
     
     %%%%%%%%%%%%%%%%%%% 可视化部分 %%%%%%%%%%%%%%%%%%%
-    if mod(t,10) == 0
+    if mod(t,100) == 0
         cla;
         contourf(X, Y, psi', 50, 'LineColor', 'none');
         streamslice(X, Y, u', v');
@@ -109,20 +109,20 @@ while(maxdomega>tolerance1)
             text_handles = gobjects(0); % 重置句柄
             legend_handles = []; % 涡心强度句柄
             if ~isempty(selected_cores)
-                h1=plot(selected_cores(1,1), selected_cores(1,2), 'ro-', 'MarkerSize', 3, 'MarkerFaceColor', 'r')  % 主涡心
+                h1=plot(selected_cores(1,1), selected_cores(1,2), 'ro-', 'MarkerSize', 3, 'MarkerFaceColor', 'r');  % 主涡心
                 text_handles(end+1) = text(selected_cores(1,1)+0.02, selected_cores(1,2)-0.02,...
                     sprintf('(%.3f, %.3f)\n%.3e',...
                     selected_cores(1,1), selected_cores(1,2), magnitudes(1)),...
                     'Color','r', 'FontSize',10, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'top');
                 if size(selected_cores,1)>=2
-                    h2=plot(selected_cores(2,1), selected_cores(2,2), 'go-', 'MarkerSize', 3, 'MarkerFaceColor', 'g')  % 右下二次涡心
+                    h2=plot(selected_cores(2,1), selected_cores(2,2), 'go-', 'MarkerSize', 3, 'MarkerFaceColor', 'g');  % 右下二次涡心
                     text_handles(end+1) = text(selected_cores(2,1)-0.02, selected_cores(2,2)+0.02,...
                         sprintf('(%.3f, %.3f)\n%.3e',...
                         selected_cores(2,1), selected_cores(2,2), magnitudes(2)),...
                         'Color','g', 'FontSize',10, 'HorizontalAlignment', 'right', 'VerticalAlignment', 'bottom');
                 end
                 if size(selected_cores,1)>=3
-                    h3=plot(selected_cores(3,1), selected_cores(3,2), 'bo-', 'MarkerSize', 3, 'MarkerFaceColor', 'b') % 左下二次涡心
+                    h3=plot(selected_cores(3,1), selected_cores(3,2), 'bo-', 'MarkerSize', 3, 'MarkerFaceColor', 'b'); % 左下二次涡心
                     text_handles(end+1) = text(selected_cores(3,1)+0.02, selected_cores(3,2)+0.02,...
                         sprintf('(%.3f, %.3f)\n%.3e',...
                         selected_cores(3,1), selected_cores(3,2), magnitudes(3)),...
@@ -141,6 +141,9 @@ end
 
 figure_str = ['figure\M=', num2str(M), '_N=', num2str(N), '.png'];
 saveas(gcf, figure_str);
+output_str = ['output\M=', num2str(M), '_N=', num2str(N), '.mat'];
+save(output_str, 'u', 'v', 'psi', 'omega');
+disp('数据已成功保存');
 
 %%%%%%%%%%%%%%%%%%% 函数部分 %%%%%%%%%%%%%%%%%%%
 
@@ -154,8 +157,8 @@ function [psi, iter] = SOR(psi, omega, dx, dy, w, tolerance, M, N)
         iter = iter + 1;
         max_error = 0;
         
-        for i = 2:M-1
-            for j = 2:N-1
+        for i = 2:M
+            for j = 2:N
                 temp = psi(i,j);
                 psi(i,j) = w/(2*(1+beta^2)) * (psi(i+1,j) + psi(i-1,j) + ...
                           beta^2*(psi(i,j+1) + psi(i,j-1)) + dx^2*omega(i,j)) ...
@@ -174,7 +177,7 @@ function w_opt = SOR_w_opt(p, omega, dx, dy, w, tolerance, M, N)
     [~, min_iter] = SOR(p, omega, dx, dy, w, tolerance, M, N);
     w_opt = w;
     
-    for w1 = (w+0.001):0.001:1.986
+    for w1 = (w+0.001):0.001:1.980
         [~, iter] = SOR(p, omega, dx, dy, w1, tolerance, M, N);
         if iter < min_iter
             min_iter = iter;
@@ -188,8 +191,8 @@ function [maxima, minima] = find_vortex_cores(psi)
     [M,N] = size(psi);
     maxima = []; minima = [];
     
-    for i = 3:M-2
-        for j = 3:N-2
+    for i = 3:M-1
+        for j = 3:N-1
             current = psi(i,j);
             window = psi(i-1:i+1,j-1:j+1); % 在3*3窗口寻找
             window(2,2) = NaN; 

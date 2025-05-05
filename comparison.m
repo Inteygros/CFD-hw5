@@ -1,0 +1,39 @@
+M=256;
+N=256;
+file_str = ['output\M=', num2str(M), '_N=', num2str(N), '.mat'];
+output = matfile(file_str);
+u = output.u;
+v = output.v;
+m = floor(0.5*M)+1;
+u_center = u(m, :); % 竖直中间线x=0.5上的u剖面
+v_center = v(:, m); % 水平中间线y=0.5上的v剖面
+
+% 生成坐标轴
+y_coord = linspace(0, 1, N+1);
+x_coord = linspace(0, 1, M+1);
+
+ref_u = load('output\u along vertical line through center of cavity.txt');  % 两列：[y_position, u_value]
+ref_v = load('output\v along horizontal line through center of cavity.txt');  % 两列：[x_position, v_value]
+
+% 绘制 u 剖面图
+figure;
+plot(y_coord, u_center, 'b-', 'LineWidth', 1);  % 计算值（蓝色实线）
+hold on;
+scatter(ref_u(:,1), ref_u(:,2), 10, 'ro', 'MarkerEdgeColor', 'r');  % 参考点（红色圆圈）
+xlabel('y');
+ylabel('u');
+legend('计算值', '参考值', 'Location', 'best');
+title('竖直中间线 x=0.5 处的 u 剖面');
+grid on;
+
+% 绘制 v 剖面图
+figure;
+plot(x_coord, v_center, 'b-', 'LineWidth', 1);  % 计算值（蓝色实线）
+hold on;
+scatter(ref_v(:,1), ref_v(:,2), 10, 'ro', 'MarkerEdgeColor', 'r');  % 参考点（红色圆圈）
+xlabel('x');
+ylabel('v');
+legend('计算值', '参考值', 'Location', 'best');
+title('水平中间线 y=0.5 处的 v 剖面');
+grid on;
+
